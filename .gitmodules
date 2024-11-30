@@ -1,0 +1,3 @@
+[submodule "citro3d-rs"]
+	path = citro3d-rs
+	url = git@github.com:Bash-09/citro3d-rs.git

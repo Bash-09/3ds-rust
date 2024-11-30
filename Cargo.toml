@@ -1,0 +1,11 @@
+[workspace]
+
+members = [
+  "core3d",
+  "preprocessor",
+  "app",
+]
+
+exclude = [
+  "citro3d-rs",
+]

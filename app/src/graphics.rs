@@ -5,7 +5,6 @@ use citro3d::{
 };
 
 pub const VERTEX_SHADER: &[u8] = include_shader!("../assets/vshader.pica");
-pub const LOGO_BYTES: &[u8] = include_bytes!("../assets/logo.bin");
 
 pub fn attr_info() -> attrib::Info {
     // Configure attributes for use with the vertex shader

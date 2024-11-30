@@ -9,3 +9,5 @@ members = [
 exclude = [
   "citro3d-rs",
 ]
+
+resolver = "2"

@@ -2,14 +2,15 @@
 # Getting Started
 - Follow the steps on the [Getting started](https://github.com/rust3ds/ctru-rs/wiki/Getting-Started) page of the rust3ds org on Github to setup your dev environment. 
 - Run `git submodule init` to include the `citro3d-rs` submodule required to build the 3DS app
-- Use `cargo 3ds build --release` or `cargo 3ds run --address <3dslink address> --release` inside `app` to test the 3DS app (or alternatively run the examples in the `citro3d-rs/citro3d` repo/folder).
+- Inside the `app` folder, run `rustup override set nightly` to tell Cargo to use Rust nightly when compiling that project
+- Use `cargo 3ds build --release` or `cargo 3ds run --address <3dslink address> --release` inside `app` to test the 3DS app (or alternatively run the examples in the `citro3d-rs/citro3d` repo/folder) (be sure to use release mode, as debug will be very slow to deserialise and load the model data at startup, resulting in a black screen for a long time before it actually renders)
 
 After building, the output files will be in `target/armv6k-nintendo-3ds/release`. `app.elf` can be run directly in an emulator like Citra.
 
 # Repository structure
 - `app` - The main 3DS app I'm working on
 - `core3d` - A crate for handling much of the 3D data and processing in the 3DS app
-- `preprocessor` - A desktop app that parses a `gltf` file and uses `core3d` to structure and serialize the data so it can be easily imported and used in the main 3DS app
+- `preprocessor` - A desktop app that parses a `gltf`/`glb` file and uses `core3d` to structure and serialize the data so it can be easily imported and used in the main 3DS app
 - `citro3d-rs` - My fork of the Rust wrapper for the 3DS GPU driver. This is included as a submodule so it can be kept in a separate repo but still easily have the 3DS project refer to a local and easily-modifiable copy of the crate
 
 # Exporting from Blender and Preprocessing

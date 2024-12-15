@@ -9,20 +9,23 @@ use citro3d::{
     texture::{self, Face},
     RenderPass,
 };
-use core3d::Model;
+use core3d::{
+    rkyv::{self, Deserialize},
+    Animation, Model, Skeleton, Vertex,
+};
 use ctru::{
     linear::LinearAllocator,
     prelude::*,
     services::gfx::{RawFrameBuffer, Screen},
 };
 use graphics::{screen_proj, VERTEX_SHADER};
-use quad::{QUAD_INDS, QUAD_VERTS};
+use quad::QUAD_VERTS;
 
 pub mod app;
 pub mod graphics;
 pub mod quad;
 
-pub const MODEL_BYTES: &[u8] = include_bytes!("../assets/Bash_3DS.mp");
+pub const MODEL_BYTES: &[u8] = include_bytes!("../assets/Bash_3DS.rkyv");
 
 const CLEAR_COL: u32 = 0x68_B0_D8_FF;
 
@@ -72,19 +75,23 @@ fn main() {
     let mut quad_vertices = Vec::with_capacity_in(QUAD_VERTS.len(), LinearAllocator);
     quad_vertices.extend_from_slice(QUAD_VERTS);
 
-    let mut quad_buf_info = buffer::Info::new();
-    let quad_slice = quad_buf_info.add(&quad_vertices, &attr_info).unwrap();
-    let quad_inds = quad_slice.index_buffer(QUAD_INDS).unwrap();
+    // let mut quad_buf_info = buffer::Info::new();
+    // let quad_slice = quad_buf_info.add(&quad_vertices, &attr_info).unwrap();
+    // let quad_inds = quad_slice.index_buffer(QUAD_INDS).unwrap();
 
     // Load exported model
-    let model: Model = rmp_serde::from_slice(MODEL_BYTES).expect("Failed to deserialize model");
+    let model = unsafe { core3d::rkyv::archived_root::<Model>(MODEL_BYTES) };
 
     let mut model1_verts = Vec::with_capacity_in(model.meshes[0].verts.len(), LinearAllocator);
-    model1_verts.extend_from_slice(&model.meshes[0].verts);
+    // model1_verts.extend(model.meshes[0].verts.iter().map::<Vertex, _>(|v| {
+    //     v.deserialize(&mut rkyv::Infallible)
+    //         .expect("Failed to deserialise vertex.")
+    // }));
+    model1_verts.extend(model.meshes[0].verts.iter());
 
-    let mut model1_buf_info = buffer::Info::new();
-    let model1_slice = model1_buf_info.add(&model1_verts, &attr_info).unwrap();
-    let model1_inds = model1_slice.index_buffer(&model.meshes[0].inds).unwrap();
+    // let mut model1_buf_info = buffer::Info::new();
+    // let model1_slice = model1_buf_info.add(&model1_verts, &attr_info).unwrap();
+    // let model1_inds = model1_slice.index_buffer(&model.meshes[0].inds).unwrap();
 
     // Create texture
     let mut texture1 = texture::Texture::new(texture::TextureParameters::new_2d(
@@ -101,12 +108,15 @@ fn main() {
         .load_image(&tex_bytes, Face::default())
         .expect("Failed to load texture bytes");
 
-    let mut model2_verts = Vec::with_capacity_in(model.meshes[1].verts.len(), LinearAllocator);
-    model2_verts.extend_from_slice(&model.meshes[1].verts);
+    // let mut model2_verts = Vec::with_capacity_in(model.meshes[1].verts.len(), LinearAllocator);
+    // model2_verts.extend(model.meshes[1].verts.iter().map::<Vertex, _>(|v| {
+    //     v.deserialize(&mut rkyv::Infallible)
+    //         .expect("Failed to deserialise vertex")
+    // }));
 
-    let mut model2_buf_info = buffer::Info::new();
-    let model2_slice = model2_buf_info.add(&model2_verts, &attr_info).unwrap();
-    let model2_inds = model2_slice.index_buffer(&model.meshes[1].inds).unwrap();
+    // let mut model2_buf_info = buffer::Info::new();
+    // let model2_slice = model2_buf_info.add(&model2_verts, &attr_info).unwrap();
+    // let model2_inds = model2_slice.index_buffer(&model.meshes[1].inds).unwrap();
 
     // Create texture
     let mut texture2 = texture::Texture::new(texture::TextureParameters::new_2d(
@@ -139,6 +149,15 @@ fn main() {
     println!("Hello, World!");
     println!("\x1b[29;16HPress Start to exit");
 
+    let animation: Animation = model.animations[0]
+        .deserialize(&mut rkyv::Infallible)
+        .expect("Failed to deserialise animation");
+
+    // let skeleton: Skeleton = model
+    //     .skeleton
+    //     .deserialize(&mut rkyv::Infallible)
+    //     .expect("Failed to deserialise skeleton");
+
     while apt.main_loop() {
         t += 0.16;
         let frame_start_time = unsafe { ctru_sys::osGetTime() };
@@ -148,8 +167,8 @@ fn main() {
         model_matrix.translate(0.0, -1.0, -4.0);
         let mvp = screen_proj * model_matrix;
 
-        let animated_pose = model.animations[0].sample(t * 0.25);
-        let joint_transforms = model.skeleton.apply_pose_to_joints(&animated_pose).unwrap();
+        // let animated_pose = animation.sample(t * 0.25);
+        // let joint_transforms = skeleton.apply_pose_to_joints(&animated_pose).unwrap();
 
         hid.scan_input();
 
@@ -165,40 +184,40 @@ fn main() {
 
             // Hacky bullshit to bind a uniform array, lets figure this out later
             unsafe {
-                let idx = uniform_joint.inner();
-                let vecs = citro3d_sys::C3D_FVUnifWritePtr(
-                    ctru_sys::GPU_VERTEX_SHADER,
-                    idx as i32,
-                    (joint_transforms.len() * 4) as i32,
-                );
-                let vecs = core::slice::from_raw_parts_mut(vecs, joint_transforms.len() * 4);
+                // let idx = uniform_joint.inner();
+                // let vecs = citro3d_sys::C3D_FVUnifWritePtr(
+                //     ctru_sys::GPU_VERTEX_SHADER,
+                //     idx as i32,
+                //     (joint_transforms.len() * 4) as i32,
+                // );
+                // let vecs = core::slice::from_raw_parts_mut(vecs, joint_transforms.len() * 4);
 
-                for matrix in 0..joint_transforms.len() {
-                    for row in 0..4 {
-                        vecs[matrix * 4 + row].__bindgen_anon_1.x =
-                            joint_transforms[matrix].row(row).x;
-                        vecs[matrix * 4 + row].__bindgen_anon_1.y =
-                            joint_transforms[matrix].row(row).y;
-                        vecs[matrix * 4 + row].__bindgen_anon_1.z =
-                            joint_transforms[matrix].row(row).z;
-                        vecs[matrix * 4 + row].__bindgen_anon_1.w =
-                            joint_transforms[matrix].row(row).w;
-                    }
-                }
+                // for matrix in 0..joint_transforms.len() {
+                //     for row in 0..4 {
+                //         vecs[matrix * 4 + row].__bindgen_anon_1.x =
+                //             joint_transforms[matrix].row(row).x;
+                //         vecs[matrix * 4 + row].__bindgen_anon_1.y =
+                //             joint_transforms[matrix].row(row).y;
+                //         vecs[matrix * 4 + row].__bindgen_anon_1.z =
+                //             joint_transforms[matrix].row(row).z;
+                //         vecs[matrix * 4 + row].__bindgen_anon_1.w =
+                //             joint_transforms[matrix].row(row).w;
+                //     }
+                // }
             }
 
-            let body_pass = RenderPass::new(&program, &screen_target, model1_slice, &attr_info)
-                .with_texenv_stages([&textured_stage])
-                .with_indices(&model1_inds)
-                .with_texture(texture::TexUnit::TexUnit0, &texture1)
-                .with_vertex_uniforms([(uniform_proj, (mvp).into())]);
-            frame.draw(&body_pass).unwrap();
+            // let body_pass = RenderPass::new(&program, &screen_target, model1_slice, &attr_info)
+            //     .with_texenv_stages([&textured_stage])
+            //     .with_indices(&model1_inds)
+            //     .with_texture(texture::TexUnit::TexUnit0, &texture1)
+            //     .with_vertex_uniforms([(uniform_proj, (mvp).into())]);
+            // frame.draw(&body_pass).unwrap();
 
-            let wings_pass = body_pass
-                .with_vbo(model2_slice, &attr_info)
-                .with_indices(&model2_inds)
-                .with_texture(texture::TexUnit::TexUnit0, &texture2);
-            frame.draw(&wings_pass).unwrap();
+            // let wings_pass = body_pass
+            //     .with_vbo(model2_slice, &attr_info)
+            //     .with_indices(&model2_inds)
+            //     .with_texture(texture::TexUnit::TexUnit0, &texture2);
+            // frame.draw(&wings_pass).unwrap();
         });
 
         total_frame_time = unsafe { ctru_sys::osGetTime() - frame_start_time };

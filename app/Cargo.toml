@@ -12,10 +12,8 @@ ctru-sys = { git = "https://github.com/rust3ds/ctru-rs" }
 citro3d = { path = "../citro3d-rs/citro3d", features = ["glam"] }
 citro3d-sys = { git = "https://github.com/rust3ds/citro3d-rs" }
 tobj = "4.0.2"
-glam = "0.24.2"
 
 core3d = { path = "../core3d" }
-rmp-serde = "1.3.0"
 
 [package.metadata.cargo-3ds]
 romfs_dir = "romfs"

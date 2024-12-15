@@ -1,8 +1,13 @@
 use glam::{Mat4, Quat, Vec2, Vec3};
-use serde::{Deserialize, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
+
+pub use glam;
+pub use rkyv;
+
+pub mod ik;
 
 #[repr(C)]
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Archive, Serialize, Deserialize, Debug)]
 pub struct Vertex {
     pub pos: Vec3,
     pub norm: Vec3,
@@ -25,14 +30,14 @@ impl Default for Vertex {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug)]
 pub struct Mesh {
     pub verts: Vec<Vertex>,
     pub inds: Vec<u16>,
     pub texture: u8,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Archive, Serialize, Deserialize, Debug)]
 pub struct JointTransform {
     pub pos: Vec3,
     pub rot: Quat,
@@ -40,14 +45,26 @@ pub struct JointTransform {
 }
 
 impl JointTransform {
+    #[must_use]
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos)
     }
 }
 
-impl Into<Mat4> for JointTransform {
-    fn into(self) -> Mat4 {
-        self.matrix()
+impl From<JointTransform> for Mat4 {
+    fn from(val: JointTransform) -> Self {
+        val.matrix()
+    }
+}
+
+impl From<Mat4> for JointTransform {
+    fn from(value: Mat4) -> Self {
+        let (scale, rot, trans) = value.to_scale_rotation_translation();
+        Self {
+            pos: trans,
+            rot,
+            scale,
+        }
     }
 }
 
@@ -61,22 +78,20 @@ impl Default for JointTransform {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug)]
 pub struct Joint {
-    pub index: u8,
     pub name: String,
     /// In the joint's local space, relative to its parent
     pub base_transform: JointTransform,
     pub inverse_bind_matrix: Mat4,
     /// Indices into a vector of Joints
-    pub children: Vec<u8>,
+    pub children: Vec<u16>,
     pub parent: Option<u8>,
 }
 
 impl Default for Joint {
     fn default() -> Self {
         Self {
-            index: 0,
             name: String::new(),
             base_transform: JointTransform {
                 pos: Vec3::ZERO,
@@ -91,19 +106,30 @@ impl Default for Joint {
 }
 
 /// A collection of up to 255 joints making up a skeleton
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug)]
 pub struct Skeleton {
     /// The first joint is the root joint
     pub joints: Vec<Joint>,
 }
 
 impl Skeleton {
-    pub fn base_pose(&self) -> Vec<JointTransform> {
+    #[must_use]
+    pub fn pose(&self) -> Vec<JointTransform> {
         self.joints.iter().map(|j| j.base_transform).collect()
+    }
+
+    /// Returns the index of the joint with the given name
+    #[must_use]
+    pub fn find_joint(&self, joint_name: &str) -> Option<usize> {
+        self.joints
+            .iter()
+            .enumerate()
+            .find(|(_, j)| j.name == joint_name)
+            .map(|(i, _)| i)
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub textures: Vec<Texture>,
@@ -111,14 +137,14 @@ pub struct Model {
     pub animations: Vec<Animation>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug)]
 pub struct Texture {
     pub data: Vec<u8>,
     pub width: u16,
     pub height: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug, Default)]
 pub struct JointAnimation {
     pub translations: Vec<(f32, Vec3)>,
     pub rotations: Vec<(f32, Quat)>,
@@ -126,23 +152,22 @@ pub struct JointAnimation {
 }
 
 impl JointAnimation {
+    #[must_use]
     pub fn sample(&self, t: f32) -> JointTransform {
         let mut out = JointTransform::default();
 
         // Translation
-        let t_tran = t % self.translations.last().map(|(len, _)| *len).unwrap_or(1.0);
+        let t_tran = t % self.translations.last().map_or(1.0, |(len, _)| *len);
         let (t_before, tran_before) = self
             .translations
             .iter()
-            .filter(|(t, _)| *t <= t_tran)
-            .next()
+            .find(|(t, _)| *t <= t_tran)
             .copied()
             .unwrap_or((0.0, Vec3::ZERO));
         let (t_after, tran_after) = self
             .translations
             .iter()
-            .filter(|(t, _)| *t > t_tran)
-            .next()
+            .find(|(t, _)| *t > t_tran)
             .copied()
             .unwrap_or((1.0, Vec3::ZERO));
 
@@ -150,19 +175,17 @@ impl JointAnimation {
         out.pos = tran_before.lerp(tran_after, t_interp);
 
         // Rotation
-        let t_rot = t % self.rotations.last().map(|(len, _)| *len).unwrap_or(1.0);
+        let t_rot = t % self.rotations.last().map_or(1.0, |(len, _)| *len);
         let (t_before, rot_before) = self
             .rotations
             .iter()
-            .filter(|(t, _)| *t <= t_rot)
-            .next()
+            .find(|(t, _)| *t <= t_rot)
             .copied()
             .unwrap_or((0.0, Quat::IDENTITY));
         let (t_after, rot_after) = self
             .rotations
             .iter()
-            .filter(|(t, _)| *t > t_rot)
-            .next()
+            .find(|(t, _)| *t > t_rot)
             .copied()
             .unwrap_or((1.0, Quat::IDENTITY));
 
@@ -170,19 +193,17 @@ impl JointAnimation {
         out.rot = rot_before.lerp(rot_after, t_interp);
 
         // Translation
-        let t_scale = t % self.scales.last().map(|(len, _)| *len).unwrap_or(1.0);
+        let t_scale = t % self.scales.last().map_or(1.0, |(len, _)| *len);
         let (t_before, scale_before) = self
             .scales
             .iter()
-            .filter(|(t, _)| *t <= t_scale)
-            .next()
+            .find(|(t, _)| *t <= t_scale)
             .copied()
             .unwrap_or((0.0, Vec3::ZERO));
         let (t_after, scale_after) = self
             .scales
             .iter()
-            .filter(|(t, _)| *t > t_scale)
-            .next()
+            .find(|(t, _)| *t > t_scale)
             .copied()
             .unwrap_or((1.0, Vec3::ZERO));
 
@@ -193,23 +214,14 @@ impl JointAnimation {
     }
 }
 
-impl Default for JointAnimation {
-    fn default() -> Self {
-        JointAnimation {
-            translations: Vec::new(),
-            rotations: Vec::new(),
-            scales: Vec::new(),
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Archive, Serialize, Deserialize, Debug)]
 pub struct Animation {
     pub name: String,
     pub joints: Vec<JointAnimation>,
 }
 
 impl Animation {
+    #[must_use]
     pub fn sample(&self, t: f32) -> Vec<JointTransform> {
         self.joints
             .iter()
@@ -222,6 +234,7 @@ impl Skeleton {
     /// Calculates the transformation matrices for a set of joint transforms.
     /// Will return None if the number of joint transforms provided does not match
     /// the number of joints in the skeleton.
+    #[must_use]
     pub fn apply_pose_to_joints(&self, pose: &[JointTransform]) -> Option<Vec<Mat4>> {
         if pose.len() != self.joints.len() {
             return None;
@@ -243,10 +256,12 @@ impl Skeleton {
             let current_transform = if joint.parent.is_none() {
                 current_local_transform
             } else {
-                parent_transforms[i].expect("Parent transform not set") * current_local_transform
+                parent_transforms[i]
+                    .expect("Parent transform not set, joints may be incorrectly ordered.")
+                    * current_local_transform
             };
 
-            for c in &joint.children {
+            for c in joint.children.iter() {
                 // Set parent transforms
                 parent_transforms[*c as usize] = Some(current_transform);
             }

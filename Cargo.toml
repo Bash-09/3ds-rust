@@ -11,3 +11,6 @@ exclude = [
 ]
 
 resolver = "2"
+
+[patch.crates-io]
+rkyv = { version = "0.7.45", git = "https://github.com/Bash-09/rkyv", branch = "0.7" }

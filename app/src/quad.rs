@@ -1,5 +1,5 @@
+use core3d::glam::{Vec2, Vec3};
 use core3d::Vertex;
-use glam::{Vec2, Vec3};
 
 pub static QUAD_VERTS: &[Vertex] = &[
     // Top Right

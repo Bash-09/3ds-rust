@@ -3,6 +3,7 @@ use std::path::Path;
 use core3d::*;
 use glam::{Mat4, Quat, Vec2, Vec3};
 use gltf::animation::{util::ReadOutputs, Property};
+use rkyv::ser::Serializer;
 
 const MAX_JOINTS: u16 = 18;
 
@@ -19,7 +20,15 @@ fn main() {
     let dest = &args[2];
 
     let bundle = load_gltf(source);
-    let out_bytes = rmp_serde::to_vec(&bundle).unwrap();
+
+    // let mut serialiser = rkyv::ser::serializers::AlignedSerializer::new(rkyv::AlignedVec::new());
+    // serialiser
+    //     .serialize_value(&bundle)
+    //     .expect("Failed to archive model");
+    // let out_bytes = serialiser.into_inner();
+
+    let out_bytes = rkyv::to_bytes::<_, 500_000>(&bundle).unwrap();
+
     std::fs::write(dest, out_bytes).unwrap();
     println!("Wrote data out to {dest}");
 }
@@ -152,6 +161,8 @@ fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
     }
 
     // Skeleton
+    let mut skeleton_joint_indices = Vec::new();
+
     if let Some(skin) = gltf.skins().next() {
         println!("Extracting skeleton");
 
@@ -164,9 +175,9 @@ fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
                 .children()
                 .map(|c| c.index().try_into().expect("Child joint out of bounds"))
                 .collect();
+            skeleton_joint_indices.push(joint.index());
             model.skeleton.joints.push(Joint {
                 parent: None,
-                index: joint.index() as u8,
                 name: joint.name().map_or(String::new(), String::from),
                 base_transform: JointTransform { pos, rot, scale },
                 inverse_bind_matrix: Mat4::IDENTITY,
@@ -190,8 +201,8 @@ fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
 
     // Remap children
     let mut index_map = vec![0; model.skeleton.joints.len()];
-    for (i, j) in model.skeleton.joints.iter().enumerate() {
-        index_map[j.index as usize] = i as u8;
+    for (i, _) in model.skeleton.joints.iter().enumerate() {
+        index_map[skeleton_joint_indices[i]] = i as _;
     }
     for i in model
         .skeleton

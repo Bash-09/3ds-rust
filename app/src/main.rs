@@ -22,8 +22,6 @@ pub mod app;
 pub mod graphics;
 pub mod quad;
 
-pub const MODEL_BYTES: &[u8] = include_bytes!("../assets/Bash_3DS.mp");
-
 const CLEAR_COL: u32 = 0x68_B0_D8_FF;
 
 fn main() {
@@ -33,6 +31,7 @@ fn main() {
     let mut citro = citro3d::Instance::new().unwrap();
 
     let _console = Console::new(gfx.bottom_screen.borrow_mut());
+    let _romfs = ctru::services::romfs::RomFS::new().unwrap();
 
     std::panic::set_hook(Box::new(|info| {
         println!("Panic: {info}");
@@ -69,15 +68,25 @@ fn main() {
     let attr_info = graphics::attr_info();
 
     // Load quad
-    let mut quad_vertices = Vec::with_capacity_in(QUAD_VERTS.len(), LinearAllocator);
-    quad_vertices.extend_from_slice(QUAD_VERTS);
+    // let mut quad_vertices = Vec::with_capacity_in(QUAD_VERTS.len(), LinearAllocator);
+    // quad_vertices.extend_from_slice(QUAD_VERTS);
 
-    let mut quad_buf_info = buffer::Info::new();
-    let quad_slice = quad_buf_info.add(&quad_vertices, &attr_info).unwrap();
-    let quad_inds = quad_slice.index_buffer(QUAD_INDS).unwrap();
+    // let mut quad_buf_info = buffer::Info::new();
+    // let quad_slice = quad_buf_info.add(&quad_vertices, &attr_info).unwrap();
+    // let quad_inds = quad_slice.index_buffer(QUAD_INDS).unwrap();
+
+    let start_time = unsafe { ctru_sys::osGetTime() };
 
     // Load exported model
-    let model: Model = rmp_serde::from_slice(MODEL_BYTES).expect("Failed to deserialize model");
+    let model: Model = {
+        let model_bytes =
+            std::fs::read("romfs:/Bash_3DS.model").expect("Couldn't load model from romfs");
+        rmp_serde::from_slice(&model_bytes).expect("Failed to deserialize model")
+    };
+
+    let end_time = unsafe { ctru_sys::osGetTime() };
+    let setup_time = end_time - start_time;
+    println!("Took {setup_time}ms to deserialise model bundle.");
 
     let mut model1_verts = Vec::with_capacity_in(model.meshes[0].verts.len(), LinearAllocator);
     model1_verts.extend_from_slice(&model.meshes[0].verts);

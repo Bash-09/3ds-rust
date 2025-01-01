@@ -6,26 +6,8 @@ use gltf::animation::{util::ReadOutputs, Property};
 
 const MAX_JOINTS: u16 = 18;
 
-fn main() {
-    let args: Vec<_> = std::env::args().collect();
-
-    if args.len() != 3 {
-        println!("Usage:");
-        println!("./animation_3ds_exporter source_gltf_file output_file");
-        std::process::exit(0);
-    }
-
-    let source = &args[1];
-    let dest = &args[2];
-
-    let bundle = load_gltf(source);
-    let out_bytes = rmp_serde::to_vec(&bundle).unwrap();
-    std::fs::write(dest, out_bytes).unwrap();
-    println!("Wrote data out to {dest}");
-}
-
 #[allow(clippy::too_many_lines)]
-fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
+pub fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
     let (gltf, buffers, images) = gltf::import(file).expect("Couldn't import gltf file");
 
     let mut model = Model {

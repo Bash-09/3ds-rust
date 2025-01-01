@@ -4,7 +4,7 @@ use citro3d::{
     math::{self, ClipPlanes, Projection},
 };
 
-pub const VERTEX_SHADER: &[u8] = include_shader!("../assets/vshader.pica");
+pub const VERTEX_SHADER: &[u8] = include_shader!("../shaders/vshader.pica");
 
 pub fn attr_info() -> attrib::Info {
     // Configure attributes for use with the vertex shader

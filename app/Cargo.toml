@@ -17,5 +17,9 @@ glam = "0.24.2"
 core3d = { path = "../core3d" }
 rmp-serde = "1.3.0"
 
+[build-dependencies]
+preprocessor = { path = "../preprocessor" }
+rmp-serde = "1.3.0"
+
 [package.metadata.cargo-3ds]
 romfs_dir = "romfs"

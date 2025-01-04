@@ -172,35 +172,14 @@ fn main() {
         citro.render_frame_with(|frame| {
             screen_target.clear(ClearFlags::ALL, CLEAR_COL, 0);
 
-            // Hacky bullshit to bind a uniform array, lets figure this out later
-            unsafe {
-                let idx = uniform_joint.inner();
-                let vecs = citro3d_sys::C3D_FVUnifWritePtr(
-                    ctru_sys::GPU_VERTEX_SHADER,
-                    idx as i32,
-                    (joint_transforms.len() * 4) as i32,
-                );
-                let vecs = core::slice::from_raw_parts_mut(vecs, joint_transforms.len() * 4);
-
-                for matrix in 0..joint_transforms.len() {
-                    for row in 0..4 {
-                        vecs[matrix * 4 + row].__bindgen_anon_1.x =
-                            joint_transforms[matrix].row(row).x;
-                        vecs[matrix * 4 + row].__bindgen_anon_1.y =
-                            joint_transforms[matrix].row(row).y;
-                        vecs[matrix * 4 + row].__bindgen_anon_1.z =
-                            joint_transforms[matrix].row(row).z;
-                        vecs[matrix * 4 + row].__bindgen_anon_1.w =
-                            joint_transforms[matrix].row(row).w;
-                    }
-                }
-            }
-
             let body_pass = RenderPass::new(&program, &screen_target, model1_slice, &attr_info)
                 .with_texenv_stages([&textured_stage])
                 .with_indices(&model1_inds)
                 .with_texture(texture::TexUnit::TexUnit0, &texture1)
-                .with_vertex_uniforms([(uniform_proj, (mvp).into())]);
+                .with_vertex_uniforms([
+                    (uniform_proj, mvp.into()),
+                    (uniform_joint, joint_transforms.as_slice().into()),
+                ]);
             frame.draw(&body_pass).unwrap();
 
             let wings_pass = body_pass

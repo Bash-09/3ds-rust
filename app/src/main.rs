@@ -66,17 +66,9 @@ fn main() {
         shader::Program::new(shader, 0).unwrap()
     };
 
-    let attr_info = graphics::attr_info();
-
-    // Load quad
-    // let mut quad_vertices = Vec::with_capacity_in(QUAD_VERTS.len(), LinearAllocator);
-    // quad_vertices.extend_from_slice(QUAD_VERTS);
-
-    // let mut quad_buf_info = buffer::Info::new();
-    // let quad_slice = quad_buf_info.add(&quad_vertices, &attr_info).unwrap();
-    // let quad_inds = quad_slice.index_buffer(QUAD_INDS).unwrap();
-
     let start_time = unsafe { ctru_sys::osGetTime() };
+
+    let attr_info = graphics::attr_info();
 
     // Load exported model
     let model: Model = {

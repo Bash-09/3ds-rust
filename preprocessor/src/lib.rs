@@ -4,7 +4,7 @@ use core3d::*;
 use glam::{Mat4, Quat, Vec2, Vec3};
 use gltf::animation::{util::ReadOutputs, Property};
 
-const MAX_JOINTS: u16 = 18;
+const MAX_JOINTS: u16 = 19;
 
 #[allow(clippy::too_many_lines)]
 pub fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
@@ -24,6 +24,12 @@ pub fn load_gltf<P: AsRef<Path>>(file: P) -> Model {
             width: data.width as u16,
             height: data.height as u16,
         };
+        println!(
+            "Extracting texture {} x {} ({} bytes)",
+            texture.width,
+            texture.height,
+            texture.data.len()
+        );
 
         // Rearrange the texture into the correct layout
         for x in 0..data.width {

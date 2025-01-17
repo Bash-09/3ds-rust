@@ -3,6 +3,14 @@ name = "preprocessor"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "preprocessor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "preprocessor"
+path = "src/main.rs"
+
 [dependencies]
 gltf = "1.4.1"
 core3d = { path = "../core3d" }

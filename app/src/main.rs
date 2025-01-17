@@ -1,7 +1,7 @@
 #![feature(allocator_api)]
 
 use citro3d::{
-    buffer::{self},
+    buffer::{OwnedInfo, Primitive},
     math,
     render::{ClearFlags, Target},
     shader::{self},
@@ -16,7 +16,6 @@ use ctru::{
     services::gfx::{RawFrameBuffer, Screen},
 };
 use graphics::{screen_proj, VERTEX_SHADER};
-use quad::{QUAD_INDS, QUAD_VERTS};
 
 pub mod app;
 pub mod graphics;
@@ -29,6 +28,8 @@ fn main() {
     let apt = Apt::new().unwrap();
     let mut hid = Hid::new().unwrap();
     let mut citro = citro3d::Instance::new().unwrap();
+
+    let total_linear_heap_size = LinearAllocator::free_space();
 
     let _console = Console::new(gfx.bottom_screen.borrow_mut());
     let _romfs = ctru::services::romfs::RomFS::new().unwrap();
@@ -88,34 +89,38 @@ fn main() {
     let setup_time = end_time - start_time;
     println!("Took {setup_time}ms to deserialise model bundle.");
 
-    let mut model1_verts = Vec::with_capacity_in(model.meshes[0].verts.len(), LinearAllocator);
-    model1_verts.extend_from_slice(&model.meshes[0].verts);
+    let mut model1 = OwnedInfo::new(Primitive::Triangles);
+    model1
+        .add(&model.meshes[0].verts, &attr_info)
+        .expect("Failed to add model 1 vertices");
+    model1
+        .add_indices(&model.meshes[0].inds)
+        .expect("Failed to add model 1 indices");
+    let model1 = model1.buffer(0).unwrap();
 
-    let mut model1_buf_info = buffer::Info::new();
-    let model1_slice = model1_buf_info.add(&model1_verts, &attr_info).unwrap();
-    let model1_inds = model1_slice.index_buffer(&model.meshes[0].inds).unwrap();
+    let mut model2 = OwnedInfo::new(Primitive::Triangles);
+    model2
+        .add(&model.meshes[1].verts, &attr_info)
+        .expect("Failed to add model 1 vertices");
+    model2
+        .add_indices(&model.meshes[1].inds)
+        .expect("Failed to add model 1 indices");
+    let model2 = model2.buffer(0).unwrap();
+
+    let tex_ind = 0;
 
     // Create texture
     let mut texture1 = texture::Texture::new(texture::TextureParameters::new_2d(
-        model.textures[0].width,
-        model.textures[0].height,
+        model.textures[tex_ind].width,
+        model.textures[tex_ind].height,
         texture::Format::RGBA8,
     ))
     .unwrap();
-
-    let mut tex_bytes = Vec::with_capacity_in(model.textures[0].data.len(), LinearAllocator);
-    tex_bytes.extend_from_slice(&model.textures[0].data);
-
+    let mut tex_bytes = Vec::with_capacity_in(model.textures[tex_ind].data.len(), LinearAllocator);
+    tex_bytes.extend_from_slice(&model.textures[tex_ind].data);
     texture1
         .load_image(&tex_bytes, Face::default())
         .expect("Failed to load texture bytes");
-
-    let mut model2_verts = Vec::with_capacity_in(model.meshes[1].verts.len(), LinearAllocator);
-    model2_verts.extend_from_slice(&model.meshes[1].verts);
-
-    let mut model2_buf_info = buffer::Info::new();
-    let model2_slice = model2_buf_info.add(&model2_verts, &attr_info).unwrap();
-    let model2_inds = model2_slice.index_buffer(&model.meshes[1].inds).unwrap();
 
     // Create texture
     let mut texture2 = texture::Texture::new(texture::TextureParameters::new_2d(
@@ -124,10 +129,8 @@ fn main() {
         texture::Format::RGBA8,
     ))
     .unwrap();
-
     let mut tex_bytes = Vec::with_capacity_in(model.textures[1].data.len(), LinearAllocator);
     tex_bytes.extend_from_slice(&model.textures[1].data);
-
     texture2
         .load_image(&tex_bytes, Face::default())
         .expect("Failed to load texture bytes");
@@ -145,7 +148,6 @@ fn main() {
 
     let mut t: f32 = 0.0;
 
-    println!("Hello, World!");
     println!("\x1b[29;16HPress Start to exit");
 
     while apt.main_loop() {
@@ -154,7 +156,7 @@ fn main() {
 
         let mut model_matrix = math::Matrix4::identity();
         model_matrix.rotate_y((4.0 * t).to_radians());
-        model_matrix.translate(0.0, -1.0, -4.0);
+        model_matrix.translate(0.0, -1.0, -4.5);
         let mvp = screen_proj * model_matrix;
 
         let animated_pose = model.animations[0].sample(t * 0.25);
@@ -166,15 +168,31 @@ fn main() {
             break;
         }
 
-        println!("\x1b[3;0H Frame time: {total_frame_time}ms");
+        let used_linear_mem = total_linear_heap_size - LinearAllocator::free_space();
+        println!("\x1b[2;0H Frame time: {total_frame_time}ms");
+
+        println!("\x1b[4;0H Memory usage:");
+        println!(
+            "\x1b[5;0H   Linear: {}kB / {}kB ({:.2}%)",
+            used_linear_mem / 1024,
+            total_linear_heap_size / 1024,
+            (used_linear_mem as f32 / total_linear_heap_size as f32) * 100.0
+        );
+
+        // Application memory just sits at 100%, I assume because the allocator is claiming it all on initialisation :c
+        // println!(
+        //     "\x1b[6;0H   Application: {}MB / {}MB ({:.2}%)",
+        //     MemRegion::Application.used() / 1048576,
+        //     MemRegion::Application.size() / 1048576,
+        //     (MemRegion::Application.used() as f32 / MemRegion::Application.size() as f32) * 100.0
+        // );
 
         // Render
         citro.render_frame_with(|frame| {
             screen_target.clear(ClearFlags::ALL, CLEAR_COL, 0);
 
-            let body_pass = RenderPass::new(&program, &screen_target, model1_slice, &attr_info)
+            let body_pass = RenderPass::new(&program, &screen_target, model1, &attr_info)
                 .with_texenv_stages([&textured_stage])
-                .with_indices(&model1_inds)
                 .with_texture(texture::TexUnit::TexUnit0, &texture1)
                 .with_vertex_uniforms([
                     (uniform_proj, mvp.into()),
@@ -183,8 +201,8 @@ fn main() {
             frame.draw(&body_pass).unwrap();
 
             let wings_pass = body_pass
-                .with_vbo(model2_slice, &attr_info)
-                .with_indices(&model2_inds)
+                .with_vbo(model2, &attr_info)
+                .with_vertex_uniforms([])
                 .with_texture(texture::TexUnit::TexUnit0, &texture2);
             frame.draw(&wings_pass).unwrap();
         });

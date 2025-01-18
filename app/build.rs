@@ -20,9 +20,12 @@ fn main() {
 
         let (out, new_ext) = match extension {
             "gltf" | "glb" => {
-                let bundle = preprocessor::load_gltf(f.path());
+                let bundle = preprocessor::model::load_gltf(f.path());
                 let bytes = rmp_serde::to_vec(&bundle).unwrap();
                 (bytes, "model")
+            }
+            "jpg" | "jpeg" | "png" => {
+                todo!()
             }
             // Pass through any other files directly
             _ => (file_contents, extension),

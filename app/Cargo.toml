@@ -11,6 +11,7 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 ctru-sys = { git = "https://github.com/rust3ds/ctru-rs" }
 citro3d = { path = "../citro3d-rs/citro3d", features = ["glam"] }
 citro3d-sys = { git = "https://github.com/rust3ds/citro3d-rs" }
+libc = "0.2.167"
 tobj = "4.0.2"
 glam = "0.24.2"
 

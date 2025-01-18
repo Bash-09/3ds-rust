@@ -1,5 +1,7 @@
 #![feature(allocator_api)]
 
+use std::sync::{Arc, Mutex};
+
 use citro3d::{
     buffer::{OwnedInfo, Primitive},
     math,
@@ -20,6 +22,7 @@ use graphics::{screen_proj, VERTEX_SHADER};
 pub mod app;
 pub mod graphics;
 pub mod quad;
+pub mod util;
 
 const CLEAR_COL: u32 = 0x68_B0_D8_FF;
 
@@ -47,6 +50,14 @@ fn main() {
             }
         }
     }));
+
+    let counter: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
+    {
+        let counter = counter.clone();
+        util::spawn_thread(1, move || loop {
+            *counter.lock().expect("Couldn't lock") += 1;
+        });
+    }
 
     // Screens and render target
     let mut top_screen = gfx.top_screen.borrow_mut();
@@ -169,6 +180,11 @@ fn main() {
             used_linear_mem / 1024,
             total_linear_heap_size / 1024,
             (used_linear_mem as f32 / total_linear_heap_size as f32) * 100.0
+        );
+
+        println!(
+            "\x1b[7;0H Background counter: {}",
+            counter.lock().expect("Couldn't lock from main thread :()")
         );
 
         // Application memory just sits at 100%, I assume because the allocator is claiming it all on initialisation :c

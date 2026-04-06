@@ -1,15 +1,12 @@
 #![feature(allocator_api)]
 
-use std::sync::{Arc, Mutex};
-
 use citro3d::{
-    buffer::{OwnedInfo, Primitive},
+    buffer::{self, Buffer, Primitive},
     math,
     render::{ClearFlags, Target},
     shader::{self},
     texenv,
     texture::{self, Face},
-    RenderPass,
 };
 use core3d::Model;
 use ctru::{
@@ -34,9 +31,9 @@ fn main() {
 
     let total_linear_heap_size = LinearAllocator::free_space();
 
-    let _console = Console::new(gfx.bottom_screen.borrow_mut());
     let _romfs = ctru::services::romfs::RomFS::new().unwrap();
 
+    let _console = Console::new(gfx.bottom_screen.borrow_mut());
     std::panic::set_hook(Box::new(|info| {
         println!("Panic: {info}");
 
@@ -51,13 +48,13 @@ fn main() {
         }
     }));
 
-    let counter: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
-    {
-        let counter = counter.clone();
-        util::spawn_thread(1, move || loop {
-            *counter.lock().expect("Couldn't lock") += 1;
-        });
-    }
+    // let counter: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
+    // {
+    //     let counter = counter.clone();
+    //     util::spawn_thread(1, move || loop {
+    //         *counter.lock().expect("Couldn't lock") += 1;
+    //     });
+    // }
 
     // Screens and render target
     let mut top_screen = gfx.top_screen.borrow_mut();
@@ -72,14 +69,14 @@ fn main() {
         .unwrap();
 
     // Shader setup
-    let program = {
-        let shader = shader::Library::from_bytes(VERTEX_SHADER).unwrap();
-        shader::Program::new(shader, 0).unwrap()
-    };
+    let shader = shader::Library::from_bytes(VERTEX_SHADER).unwrap();
+    let program = { shader::Program::new(shader.get(0).unwrap()).unwrap() };
 
     let start_time = unsafe { ctru_sys::osGetTime() };
 
     let attr_info = graphics::attr_info();
+
+    println!("Loading assets...");
 
     // Load exported model
     let model: Model = {
@@ -92,23 +89,19 @@ fn main() {
     let setup_time = end_time - start_time;
     println!("Took {setup_time}ms to deserialise model bundle.");
 
-    let mut model1 = OwnedInfo::new(Primitive::Triangles);
-    model1
-        .add(&model.meshes[0].verts, &attr_info)
-        .expect("Failed to add model 1 vertices");
-    model1
-        .add_indices(&model.meshes[0].inds)
-        .expect("Failed to add model 1 indices");
-    let model1 = model1.buffer(0).unwrap();
+    let mut model1_info = buffer::Info::new();
+    model1_info
+        .add(Buffer::new(&model.meshes[0].verts), attr_info.permutation())
+        .unwrap();
+    let mut model1_inds = Vec::new_in(LinearAllocator);
+    model1_inds.extend_from_slice(&model.meshes[0].inds);
 
-    let mut model2 = OwnedInfo::new(Primitive::Triangles);
-    model2
-        .add(&model.meshes[1].verts, &attr_info)
-        .expect("Failed to add model 1 vertices");
-    model2
-        .add_indices(&model.meshes[1].inds)
-        .expect("Failed to add model 1 indices");
-    let model2 = model2.buffer(0).unwrap();
+    let mut model2_info = buffer::Info::new();
+    model2_info
+        .add(Buffer::new(&model.meshes[1].verts), attr_info.permutation())
+        .unwrap();
+    let mut model2_inds = Vec::new_in(LinearAllocator);
+    model2_inds.extend_from_slice(&model.meshes[1].inds);
 
     let tex_ind = 0;
 
@@ -116,7 +109,7 @@ fn main() {
     let mut texture1 = texture::Texture::new(texture::TextureParameters::new_2d(
         model.textures[tex_ind].width,
         model.textures[tex_ind].height,
-        texture::Format::RGBA8,
+        texture::ColorFormat::Rgba8,
     ))
     .unwrap();
     let mut tex_bytes = Vec::with_capacity_in(model.textures[tex_ind].data.len(), LinearAllocator);
@@ -129,7 +122,7 @@ fn main() {
     let mut texture2 = texture::Texture::new(texture::TextureParameters::new_2d(
         model.textures[1].width,
         model.textures[1].height,
-        texture::Format::RGBA8,
+        texture::ColorFormat::Rgba8,
     ))
     .unwrap();
     let mut tex_bytes = Vec::with_capacity_in(model.textures[1].data.len(), LinearAllocator);
@@ -145,7 +138,7 @@ fn main() {
     let uniform_joint = program.get_uniform("jointTransforms").unwrap();
 
     let textured_stage =
-        texenv::TexEnv::new().sources(texenv::Mode::BOTH, texenv::Source::Texture0, None, None);
+        texenv::TexEnv::new().src(texenv::Mode::BOTH, texenv::Source::Texture0, None, None);
 
     let mut total_frame_time: u64 = 0;
 
@@ -182,10 +175,10 @@ fn main() {
             (used_linear_mem as f32 / total_linear_heap_size as f32) * 100.0
         );
 
-        println!(
-            "\x1b[7;0H Background counter: {}",
-            counter.lock().expect("Couldn't lock from main thread :()")
-        );
+        // println!(
+        //     "\x1b[7;0H Background counter: {}",
+        //     counter.lock().expect("Couldn't lock from main thread :()")
+        // );
 
         // Application memory just sits at 100%, I assume because the allocator is claiming it all on initialisation :c
         // println!(
@@ -196,23 +189,22 @@ fn main() {
         // );
 
         // Render
-        citro.render_frame_with(|frame| {
+        citro.render_frame_with(|mut frame| {
             screen_target.clear(ClearFlags::ALL, CLEAR_COL, 0);
 
-            let body_pass = RenderPass::new(&program, &screen_target, model1, &attr_info)
-                .with_texenv_stages([&textured_stage])
-                .with_texture(texture::TexUnit::TexUnit0, &texture1)
-                .with_vertex_uniforms([
-                    (uniform_proj, mvp.into()),
-                    (uniform_joint, joint_transforms.as_slice().into()),
-                ]);
-            frame.draw(&body_pass).unwrap();
+            frame.bind_program(&program);
+            frame.set_attr_info(&attr_info);
+            frame.select_render_target(&screen_target).unwrap();
+            frame.bind_texture(texture::Index::Texture0, &texture1);
+            frame.set_texenvs(&[textured_stage]);
+            frame.bind_vertex_uniform(uniform_proj, mvp);
+            frame.bind_vertex_uniform(uniform_joint, joint_transforms.as_slice());
+            frame.draw_elements(Primitive::Triangles, &model1_info, &model1_inds);
 
-            let wings_pass = body_pass
-                .with_vbo(model2, &attr_info)
-                .with_vertex_uniforms([])
-                .with_texture(texture::TexUnit::TexUnit0, &texture2);
-            frame.draw(&wings_pass).unwrap();
+            frame.bind_texture(texture::Index::Texture0, &texture2);
+            frame.draw_elements(Primitive::Triangles, &model2_info, &model2_inds);
+
+            frame
         });
 
         total_frame_time = unsafe { ctru_sys::osGetTime() - frame_start_time };

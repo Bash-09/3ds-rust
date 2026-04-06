@@ -1,15 +1,17 @@
 [[language]]
 name = "rust"
 auto-format = true
+language-servers = [ "rust-analyzer" ]
 
-[language-servers]
-command = "rustup"
-args = ["run", "nightly", "rust-analyzer"]
+# [language-servers]
+# command = "rust-analyzer"
 
 [language-server.rust-analyzer.config]
 check.overrideCommand = [ "cargo", "3ds", "check", "--message-format=json-diagnostic-rendered-ansi" ]
 cargo.target = "armv6k-nintendo-3ds"
 server.extraEnv = { "DEVKITPRO" = "/opt/devkitpro", "DEVKITARM" = "/opt/devkitpro/devkitARM" }
+cargo.extraEnv = { "DEVKITPRO" = "/opt/devkitpro", "DEVKITARM" = "/opt/devkitpro/devkitARM" }
+cargo.extraArgs = []
 
 [[grammar]]
 name = "rust"

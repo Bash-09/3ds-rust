@@ -7,38 +7,33 @@ use citro3d::{
 pub const VERTEX_SHADER: &[u8] = include_shader!("../shaders/vshader.pica");
 
 pub fn attr_info() -> attrib::Info {
+    use attrib::Register;
     // Configure attributes for use with the vertex shader
     let mut attr_info = attrib::Info::new();
 
-    let reg0 = attrib::Register::new(0).unwrap();
-    let reg1 = attrib::Register::new(1).unwrap();
-    let reg2 = attrib::Register::new(2).unwrap();
-    let reg3 = attrib::Register::new(3).unwrap();
-    let reg4 = attrib::Register::new(4).unwrap();
-
     // Pos
     attr_info
-        .add_loader(reg0, attrib::Format::Float, 3)
+        .add_loader(Register::V0, attrib::Format::Float, 3)
         .unwrap();
 
     // Norm
     attr_info
-        .add_loader(reg1, attrib::Format::Float, 3)
+        .add_loader(Register::V1, attrib::Format::Float, 3)
         .unwrap();
 
     // TC
     attr_info
-        .add_loader(reg2, attrib::Format::Float, 2)
+        .add_loader(Register::V2, attrib::Format::Float, 2)
         .unwrap();
 
     // Joints
     attr_info
-        .add_loader(reg3, attrib::Format::UnsignedByte, 3)
+        .add_loader(Register::V3, attrib::Format::UnsignedByte, 3)
         .unwrap();
 
     // Weights
     attr_info
-        .add_loader(reg4, attrib::Format::Float, 3)
+        .add_loader(Register::V4, attrib::Format::Float, 3)
         .unwrap();
 
     attr_info

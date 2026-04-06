@@ -2,7 +2,7 @@
 # Getting Started
 - Follow the steps on the [Getting started](https://github.com/rust3ds/ctru-rs/wiki/Getting-Started) page of the rust3ds org on Github to setup your dev environment. 
 - Run `git submodule update --init` to include the `citro3d-rs` submodule required to build the 3DS app
-- Inside the `app` folder, run `rustup override set nightly` to tell Cargo to use Rust nightly when compiling that project
+- Inside the `app` folder, run `rustup override set nightly-2025-07-24-x86_64-unknown-linux-gnu` (or your platform equivalent) to tell Cargo to use Rust nightly when compiling that project
 - Use `cargo 3ds build --release` or `cargo 3ds run --address <3dslink address> --release` inside `app` to test the 3DS app (or alternatively run the examples in the `citro3d-rs/citro3d` repo/folder) (be sure to use release mode, as debug will be very slow to deserialise and load the model data at startup, resulting in a black screen for a long time before it actually renders)
 
 After building, the output files will be in `target/armv6k-nintendo-3ds/release`. `app.3dsx` can be run directly in an emulator like Citra.
